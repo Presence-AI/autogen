@@ -101,6 +101,8 @@ class GroupChat:
 
     agents: List[Agent]
     messages: List[Dict]
+    silent: bool = False
+    verbose: bool = True
     max_round: int = 10
     admin_name: str = "Admin"
     func_call_filter: bool = True
@@ -151,6 +153,9 @@ class GroupChat:
             raise ValueError("GroupChat allow_repeat_speaker should be a bool or a list of Agents.")
 
         # Here, we create allowed_speaker_transitions_dict from the supplied allowed_or_disallowed_speaker_transitions and speaker_transitions_type, and lastly checks for validity.
+
+        self._silent = self.silent
+        self._verbose = self.verbose
 
         # Check input
         if self.speaker_transitions_type is not None:
@@ -702,7 +707,7 @@ class GroupChat:
         # Two-agent chat for speaker selection
 
         # Agent for checking the response from the speaker_select_agent
-        checking_agent = ConversableAgent("checking_agent", default_auto_reply=max_attempts)
+        checking_agent = ConversableAgent("checking_agent", default_auto_reply=max_attempts, silent=self._silent, verbose=self._verbose)
 
         # Register the speaker validation function with the checking agent
         checking_agent.register_reply(
@@ -714,6 +719,8 @@ class GroupChat:
         # Agent for selecting a single agent name from the response
         speaker_selection_agent = ConversableAgent(
             "speaker_selection_agent",
+            silent=self._silent,
+            verbose=self._verbose,
             system_message=self.select_speaker_msg(agents),
             chat_messages={checking_agent: messages},
             llm_config=selector.llm_config,
@@ -912,6 +919,8 @@ class GroupChatManager(ConversableAgent):
     def __init__(
         self,
         groupchat: GroupChat,
+        silent: bool = False,
+        verbose: bool = True,
         name: Optional[str] = "chat_manager",
         # unlimited consecutive auto reply by default
         max_consecutive_auto_reply: Optional[int] = sys.maxsize,
@@ -928,11 +937,16 @@ class GroupChatManager(ConversableAgent):
                 "GroupChatManager is not allowed to make function/tool calls. Please remove the 'functions' or 'tools' config in 'llm_config' you passed in."
             )
 
+        self._silent=silent
+        self._verbose=verbose
+
         super().__init__(
             name=name,
             max_consecutive_auto_reply=max_consecutive_auto_reply,
             human_input_mode=human_input_mode,
             system_message=system_message,
+            silent=silent,
+            verbose=verbose,
             **kwargs,
         )
         if logging_enabled():

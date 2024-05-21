@@ -67,6 +67,8 @@ class ConversableAgent(LLMAgent):
     def __init__(
         self,
         name: str,
+        silent: bool = False,
+        verbose: bool = True,
         system_message: Optional[Union[str, List]] = "You are a helpful AI Assistant.",
         is_termination_msg: Optional[Callable[[Dict], bool]] = None,
         max_consecutive_auto_reply: Optional[int] = None,
@@ -133,6 +135,8 @@ class ConversableAgent(LLMAgent):
         )
 
         self._name = name
+        self._verbose = verbose
+        self._silent = silent
         # a dictionary of conversations, default value is list
         if chat_messages is None:
             self._oai_messages = defaultdict(list)
@@ -260,7 +264,7 @@ class ConversableAgent(LLMAgent):
             raise ValueError(
                 "When using OpenAI or Azure OpenAI endpoints, specify a non-empty 'model' either in 'llm_config' or in each config of 'config_list'."
             )
-        self.client = None if self.llm_config is False else OpenAIWrapper(**self.llm_config)
+        self.client = None if self.llm_config is False else OpenAIWrapper(**self.llm_config, silent=self._silent, verbose=self._verbose)
 
     @property
     def name(self) -> str:
@@ -711,7 +715,8 @@ class ConversableAgent(LLMAgent):
     def _print_received_message(self, message: Union[Dict, str], sender: Agent):
         iostream = IOStream.get_default()
         # print the message received
-        iostream.print(colored(sender.name, "yellow"), "(to", f"{self.name}):\n", flush=True)
+        if self._verbose and not self._silent:
+            iostream.print(colored(sender.name, "yellow"), "(to", f"{self.name}):\n", flush=True)
         message = self._message_to_dict(message)
 
         if message.get("tool_responses"):  # Handle tool multi-call responses
@@ -727,9 +732,12 @@ class ConversableAgent(LLMAgent):
                 id_key = "tool_call_id"
             id = message.get(id_key, "No id found")
             func_print = f"***** Response from calling {message['role']} ({id}) *****"
-            iostream.print(colored(func_print, "green"), flush=True)
-            iostream.print(message["content"], flush=True)
-            iostream.print(colored("*" * len(func_print), "green"), flush=True)
+            if self._verbose and not self._silent:
+                iostream.print(colored(func_print, "green"), flush=True)
+            if not self._silent:
+                iostream.print(message["content"], flush=True)
+            if self._verbose and not self._silent:
+                iostream.print(colored("*" * len(func_print), "green"), flush=True)
         else:
             content = message.get("content")
             if content is not None:
@@ -739,35 +747,43 @@ class ConversableAgent(LLMAgent):
                         message["context"],
                         self.llm_config and self.llm_config.get("allow_format_str_template", False),
                     )
-                iostream.print(content_str(content), flush=True)
+                if self._verbose and not self._silent:
+                    iostream.print(content_str(content), flush=True)
             if "function_call" in message and message["function_call"]:
                 function_call = dict(message["function_call"])
                 func_print = (
                     f"***** Suggested function call: {function_call.get('name', '(No function name found)')} *****"
                 )
-                iostream.print(colored(func_print, "green"), flush=True)
-                iostream.print(
-                    "Arguments: \n",
-                    function_call.get("arguments", "(No arguments found)"),
-                    flush=True,
-                    sep="",
-                )
-                iostream.print(colored("*" * len(func_print), "green"), flush=True)
-            if "tool_calls" in message and message["tool_calls"]:
-                for tool_call in message["tool_calls"]:
-                    id = tool_call.get("id", "No tool call id found")
-                    function_call = dict(tool_call.get("function", {}))
-                    func_print = f"***** Suggested tool call ({id}): {function_call.get('name', '(No function name found)')} *****"
+                if self._verbose and not self._silent:
                     iostream.print(colored(func_print, "green"), flush=True)
+                if not self._silent:
                     iostream.print(
                         "Arguments: \n",
                         function_call.get("arguments", "(No arguments found)"),
                         flush=True,
                         sep="",
                     )
+                if self._verbose and not self._silent:
                     iostream.print(colored("*" * len(func_print), "green"), flush=True)
+            if "tool_calls" in message and message["tool_calls"]:
+                for tool_call in message["tool_calls"]:
+                    id = tool_call.get("id", "No tool call id found")
+                    function_call = dict(tool_call.get("function", {}))
+                    func_print = f"***** Suggested tool call ({id}): {function_call.get('name', '(No function name found)')} *****"
+                    if self._verbose and not self._silent:
+                        iostream.print(colored(func_print, "green"), flush=True)
+                    if self._verbose and not self._silent:
+                        iostream.print(
+                            "Arguments: \n",
+                            function_call.get("arguments", "(No arguments found)"),
+                            flush=True,
+                            sep="",
+                        )
+                    if self._verbose and not self._silent:
+                        iostream.print(colored("*" * len(func_print), "green"), flush=True)
 
-        iostream.print("\n", "-" * 80, flush=True, sep="")
+        if self._verbose and not self._silent:
+            iostream.print("\n", "-" * 80, flush=True, sep="")
 
     def _process_received_message(self, message: Union[Dict, str], sender: Agent, silent: bool):
         # When the agent receives a message, the role of the message is "user". (If 'role' exists and is 'function', it will remain unchanged.)

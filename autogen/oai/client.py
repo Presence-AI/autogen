@@ -119,7 +119,9 @@ class PlaceHolderClient:
 class OpenAIClient:
     """Follows the Client protocol and wraps the OpenAI client."""
 
-    def __init__(self, client: Union[OpenAI, AzureOpenAI]):
+    def __init__(self, client: Union[OpenAI, AzureOpenAI], silent: bool = False, verbose: bool = True):
+        self._silent = silent
+        self._verbose = verbose
         self._oai_client = client
         if (
             not isinstance(client, openai.AzureOpenAI)
@@ -173,7 +175,8 @@ class OpenAIClient:
             completion_tokens = 0
 
             # Set the terminal text color to green
-            iostream.print("\033[32m", end="")
+            if not self._silent and self._verbose:
+                iostream.print("\033[32m", end="")
 
             # Prepare for potential function call
             full_function_call: Optional[Dict[str, Any]] = None
@@ -225,7 +228,8 @@ class OpenAIClient:
 
                         # If content is present, print it to the terminal and update response variables
                         if content is not None:
-                            iostream.print(content, end="", flush=True)
+                            if not self._silent:
+                                iostream.print(content, end="", flush=True)
                             response_contents[choice.index] += content
                             completion_tokens += 1
                         else:
@@ -233,7 +237,8 @@ class OpenAIClient:
                             pass
 
             # Reset the terminal text color
-            iostream.print("\033[0m\n")
+            if not self._silent and self._verbose:
+                iostream.print("\033[0m\n")
 
             # Prepare the final ChatCompletion object based on the accumulated data
             model = chunk.model.replace("gpt-35", "gpt-3.5")  # hack for Azure API
@@ -335,7 +340,14 @@ class OpenAIWrapper:
     total_usage_summary: Optional[Dict[str, Any]] = None
     actual_usage_summary: Optional[Dict[str, Any]] = None
 
-    def __init__(self, *, config_list: Optional[List[Dict[str, Any]]] = None, **base_config: Any):
+    def __init__(
+        self,
+        *,
+        config_list: Optional[List[Dict[str, Any]]] = None,
+        silent: bool,
+        verbose: bool,
+        **base_config: Any,
+    ):
         """
         Args:
             config_list: a list of config dicts to override the base_config.
@@ -376,6 +388,8 @@ class OpenAIWrapper:
 
         self._clients: List[ModelClient] = []
         self._config_list: List[Dict[str, Any]] = []
+        self._verbose = verbose
+        self._silent = silent
 
         if config_list:
             config_list = [config.copy() for config in config_list]  # make a copy before modifying
@@ -438,7 +452,7 @@ class OpenAIWrapper:
                 self._clients.append(GeminiClient(**openai_config))
             else:
                 client = OpenAI(**openai_config)
-                self._clients.append(OpenAIClient(client))
+                self._clients.append(OpenAIClient(client, silent=self._silent, verbose=self._verbose))
 
             if logging_enabled():
                 log_new_client(client, self, openai_config)

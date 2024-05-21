@@ -26,6 +26,8 @@ class UserProxyAgent(ConversableAgent):
     def __init__(
         self,
         name: str,
+        silent: bool = False,
+        verbose: bool = True,
         is_termination_msg: Optional[Callable[[Dict], bool]] = None,
         max_consecutive_auto_reply: Optional[int] = None,
         human_input_mode: Literal["ALWAYS", "TERMINATE", "NEVER"] = "ALWAYS",
@@ -93,6 +95,8 @@ class UserProxyAgent(ConversableAgent):
             description=(
                 description if description is not None else self.DEFAULT_USER_PROXY_AGENT_DESCRIPTIONS[human_input_mode]
             ),
+            silent=silent,
+            verbose=verbose,
         )
 
         if logging_enabled():
