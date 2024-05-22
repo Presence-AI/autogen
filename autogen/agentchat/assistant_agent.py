@@ -34,6 +34,8 @@ Reply "TERMINATE" in the end when everything is done.
     def __init__(
         self,
         name: str,
+        silent: bool = False,
+        verbose: bool = True,
         system_message: Optional[str] = DEFAULT_SYSTEM_MESSAGE,
         llm_config: Optional[Union[Dict, Literal[False]]] = None,
         is_termination_msg: Optional[Callable[[Dict], bool]] = None,
@@ -61,6 +63,8 @@ Reply "TERMINATE" in the end when everything is done.
         """
         super().__init__(
             name,
+            silent,
+            verbose,
             system_message,
             is_termination_msg,
             max_consecutive_auto_reply,
