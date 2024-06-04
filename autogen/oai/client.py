@@ -119,9 +119,10 @@ class PlaceHolderClient:
 class OpenAIClient:
     """Follows the Client protocol and wraps the OpenAI client."""
 
-    def __init__(self, client: Union[OpenAI, AzureOpenAI], silent: bool = False, verbose: bool = True):
+    def __init__(self, client: Union[OpenAI, AzureOpenAI], silent: bool = False, verbose: bool = True, source_agent: str = ""):
         self._silent = silent
         self._verbose = verbose
+        self._source_agent = source_agent
         self._oai_client = client
         if (
             not isinstance(client, openai.AzureOpenAI)
@@ -229,7 +230,7 @@ class OpenAIClient:
                         # If content is present, print it to the terminal and update response variables
                         if content is not None:
                             if not self._silent:
-                                iostream.print(content, end="", flush=True)
+                                iostream.print(content, source_agent=self._source_agent, end="", flush=True)
                             response_contents[choice.index] += content
                             completion_tokens += 1
                         else:
@@ -346,6 +347,7 @@ class OpenAIWrapper:
         config_list: Optional[List[Dict[str, Any]]] = None,
         silent: bool,
         verbose: bool,
+        source_agent: str,
         **base_config: Any,
     ):
         """
@@ -390,6 +392,7 @@ class OpenAIWrapper:
         self._config_list: List[Dict[str, Any]] = []
         self._verbose = verbose
         self._silent = silent
+        self._source_agent = source_agent
 
         if config_list:
             config_list = [config.copy() for config in config_list]  # make a copy before modifying
@@ -452,7 +455,7 @@ class OpenAIWrapper:
                 self._clients.append(GeminiClient(**openai_config))
             else:
                 client = OpenAI(**openai_config)
-                self._clients.append(OpenAIClient(client, silent=self._silent, verbose=self._verbose))
+                self._clients.append(OpenAIClient(client, silent=self._silent, verbose=self._verbose, source_agent=self._source_agent))
 
             if logging_enabled():
                 log_new_client(client, self, openai_config)

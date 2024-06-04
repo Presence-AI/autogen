@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @runtime_checkable
 class OutputStream(Protocol):
-    def print(self, *objects: Any, sep: str = " ", end: str = "\n", flush: bool = False) -> None:
+    def print(self, *objects: Any, source_agent: str = "", sep: str = " ", end: str = "\n", flush: bool = False) -> None:
         """Print data to the output stream.
 
         Args:
