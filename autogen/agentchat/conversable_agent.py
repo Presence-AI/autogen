@@ -69,6 +69,7 @@ class ConversableAgent(LLMAgent):
         name: str,
         silent: bool = False,
         verbose: bool = True,
+        silent_tool_calls: bool = False,
         system_message: Optional[Union[str, List]] = "You are a helpful AI Assistant.",
         is_termination_msg: Optional[Callable[[Dict], bool]] = None,
         max_consecutive_auto_reply: Optional[int] = None,
@@ -137,6 +138,7 @@ class ConversableAgent(LLMAgent):
         self._name = name
         self._verbose = verbose
         self._silent = silent
+        self._silent_tool_calls = silent_tool_calls
         # a dictionary of conversations, default value is list
         if chat_messages is None:
             self._oai_messages = defaultdict(list)
@@ -264,7 +266,7 @@ class ConversableAgent(LLMAgent):
             raise ValueError(
                 "When using OpenAI or Azure OpenAI endpoints, specify a non-empty 'model' either in 'llm_config' or in each config of 'config_list'."
             )
-        self.client = None if self.llm_config is False else OpenAIWrapper(**self.llm_config, silent=self._silent, verbose=self._verbose)
+        self.client = None if self.llm_config is False else OpenAIWrapper(**self.llm_config, silent=self._silent, verbose=self._verbose, source_agent=self.name)
 
     @property
     def name(self) -> str:
@@ -732,11 +734,11 @@ class ConversableAgent(LLMAgent):
                 id_key = "tool_call_id"
             id = message.get(id_key, "No id found")
             func_print = f"***** Response from calling {message['role']} ({id}) *****"
-            if self._verbose and not self._silent:
+            if self._verbose and not self._silent and not self._silent_tool_calls:
                 iostream.print(colored(func_print, "green"), flush=True)
-            if not self._silent:
+            if not self._silent and not self._silent_tool_calls:
                 iostream.print(message["content"], flush=True)
-            if self._verbose and not self._silent:
+            if self._verbose and not self._silent and not self._silent_tool_calls:
                 iostream.print(colored("*" * len(func_print), "green"), flush=True)
         else:
             content = message.get("content")
@@ -754,32 +756,32 @@ class ConversableAgent(LLMAgent):
                 func_print = (
                     f"***** Suggested function call: {function_call.get('name', '(No function name found)')} *****"
                 )
-                if self._verbose and not self._silent:
+                if self._verbose and not self._silent and not self._silent_tool_calls:
                     iostream.print(colored(func_print, "green"), flush=True)
-                if not self._silent:
+                if not self._silent and not self._silent_tool_calls:
                     iostream.print(
                         "Arguments: \n",
                         function_call.get("arguments", "(No arguments found)"),
                         flush=True,
                         sep="",
                     )
-                if self._verbose and not self._silent:
+                if self._verbose and not self._silent and not self._silent_tool_calls:
                     iostream.print(colored("*" * len(func_print), "green"), flush=True)
             if "tool_calls" in message and message["tool_calls"]:
                 for tool_call in message["tool_calls"]:
                     id = tool_call.get("id", "No tool call id found")
                     function_call = dict(tool_call.get("function", {}))
                     func_print = f"***** Suggested tool call ({id}): {function_call.get('name', '(No function name found)')} *****"
-                    if self._verbose and not self._silent:
+                    if self._verbose and not self._silent and not self._silent_tool_calls:
                         iostream.print(colored(func_print, "green"), flush=True)
-                    if self._verbose and not self._silent:
+                    if self._verbose and not self._silent and not self._silent_tool_calls:
                         iostream.print(
                             "Arguments: \n",
                             function_call.get("arguments", "(No arguments found)"),
                             flush=True,
                             sep="",
                         )
-                    if self._verbose and not self._silent:
+                    if self._verbose and not self._silent and not self._silent_tool_calls:
                         iostream.print(colored("*" * len(func_print), "green"), flush=True)
 
         if self._verbose and not self._silent:
@@ -2312,10 +2314,11 @@ class ConversableAgent(LLMAgent):
 
             # Try to execute the function
             if arguments is not None:
-                iostream.print(
-                    colored(f"\n>>>>>>>> EXECUTING ASYNC FUNCTION {func_name}...", "magenta"),
-                    flush=True,
-                )
+                if self._verbose and not self._silent:
+                    iostream.print(
+                        colored(f"\n>>>>>>>> EXECUTING ASYNC FUNCTION {func_name}...", "magenta"),
+                        flush=True,
+                    )
                 try:
                     if inspect.iscoroutinefunction(func):
                         content = await func(**arguments)
@@ -2467,7 +2470,7 @@ class ConversableAgent(LLMAgent):
         if len(self.llm_config["functions"]) == 0:
             del self.llm_config["functions"]
 
-        self.client = OpenAIWrapper(**self.llm_config)
+        self.client = OpenAIWrapper(**self.llm_config, silent=self._silent, verbose=self._verbose, source_agent=self.name)
 
     def update_tool_signature(self, tool_sig: Union[str, Dict], is_remove: None):
         """update a tool_signature in the LLM configuration for tool_call.
@@ -2509,7 +2512,7 @@ class ConversableAgent(LLMAgent):
         if len(self.llm_config["tools"]) == 0:
             del self.llm_config["tools"]
 
-        self.client = OpenAIWrapper(**self.llm_config)
+        self.client = OpenAIWrapper(**self.llm_config, silent=self._silent, verbose=self._verbose, source_agent=self.name)
 
     def can_execute_function(self, name: Union[List[str], str]) -> bool:
         """Whether the agent can execute the function."""
